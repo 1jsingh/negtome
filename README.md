@@ -10,7 +10,7 @@
 ## Negative Token Merging: Image-based Adversarial Feature Guidance
   [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md-dark.svg)](https://negtome.github.io/)
 
-[[Paper](https://arxiv.org/abs/2405.01434)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://negtome.github.io/)] 
+[[Paper](https://negtome.github.io/)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://negtome.github.io/)] 
 <!-- [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://negtome.github.io/)  -->
 <br>
 </div>
@@ -27,7 +27,11 @@ Official Implementation for our paper:
 
 ### What is NegToMe?
 
-NegToMe provides a complementary modality for negative-prompt based adversarial guidance in diffusion models, by directly using visual features from a reference image to guide the generation process. 
+Using a negative prompt for avoiding generation of undesired concepts has emerged as a widely adopted approach. However, capturing complex visual concepts using text-alone is often not feasible (e.g, child in park in Fig. below) and can be insufficient (e.g., for removing copyrighted characters).
+
+NegToMe explores a different direction, proposing to perform adversarial guidance directly using images (as opposed to text alone). The key idea is simple: even if describing the undesired concepts is not effective or feasible in text-alone
+(e.g.: child in park} for figure below), we can directly use the visual features from a reference image in order to adversarially guide the generation process.
+
 
 <div align="center">
   <img src="./docs/method-overview-v1.jpg" alt="Description of Image">
@@ -91,14 +95,14 @@ NegToMe can be incorportated in just few lines of code in most state-of-the-art 
 
 ### Directly Using NegToMe Pipeline
 First simply load the pipeline:
-```
+```python
 from src.negtome.pipeline_negtome_flux import FluxNegToMePipeline
 pipe = FluxNegToMePipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16)
 pipe = pipe.to("cuda")
 ```
 
 Inference with and w/o negtome can then be run as,
-```
+```python
 from diffusers.utils import logging
 logging.set_verbosity_error()  # only show errors not warnings: https://huggingface.co/docs/diffusers/en/api/logging
 import time
@@ -106,9 +110,8 @@ import time
 negtome_args = {
     'use_negtome': False,
     'merging_alpha': 0.9,
-    'merging_threshold': 0.65,
-    'merging_dropout': 0.,
-    'merging_t_start': 1000,
+    'merging_threshold': 0.65, 
+    'merging_t_start': 1000, 
     'merging_t_end': 900,
     'num_joint_blocks': -1, # number of joint transformer blocks (flux) to apply negtome
     'num_single_blocks': -1, # number of single transformer blocks (flux) to apply negtome
@@ -171,12 +174,10 @@ If you find our work useful, please consider citing:
 ```
 @article{singh2024negtome,
   title={Negative Token Merging: Image-based Adversarial Feature Guidance},
-  author={
-    Singh, Jaskirat and Li, Lindsey and Shi, Weijia and Krishna, Ranjay and Choi, Yejin and 
-    Wei, Pang and Gould, Stephen and Zheng, Liang and Zettlemoyer, Luke
-  },
-  journal={arXiv preprint arXiv:2408.XXXXX}, 
-  url={https://arxiv.org/abs/2408.XXXXX},
+  author={Singh, Jaskirat and Li, Lindsey and Shi, Weijia and Krishna, Ranjay and Choi, Yejin and 
+    Wei, Pang and Gould, Stephen and Zheng, Liang and Zettlemoyer, Luke},
+  journal={arXiv preprint arXiv}, 
+  url={https://arxiv.org/abs/2408},
   year={2024}
 }
 ```
