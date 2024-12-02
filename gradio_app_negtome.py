@@ -7,7 +7,6 @@ from src.negtome.pipeline_negtome_flux import FluxNegToMePipeline
 ##############################################
 pipe = FluxNegToMePipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16)
 pipe = pipe.to("cuda")
-# pipe.enable_model_cpu_offload()
 
 ##############################################
 # generate_images function
@@ -77,6 +76,7 @@ def generate_images(
 with gr.Blocks() as demo:
     gr.Markdown("# NegToMe Demo: Increasing Output Diversity (Flux) 🚀")
     gr.Markdown("🔥🔥 NegToMe helps significantly increase output diversity by guiding features of each image away from each other. 🔥🔥")
+    gr.Markdown("🤗 [[Project Page](https://negtome.github.io/)] [[Paper](https://negtome.github.io/docs/negtome.pdf)]    [[GitHub](https://github.com/1jsingh/negtome)] 🤗")
     
     with gr.Row():
         # Adjust the width of the prompt textbox
@@ -93,8 +93,8 @@ with gr.Blocks() as demo:
         width: 100% !important;
     }
     """
-    merging_alpha = gr.Slider(minimum=-1., maximum=3., step=0.1, value=.9, label="Merging Alpha (higher alpha pushes images further apart)")
-    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.65, label="Merging Threshold (higher threshold preserves original features)")
+    merging_alpha = gr.Slider(minimum=-1., maximum=3., step=0.1, value=.9, label="Merging Alpha (controls diversity: higher alpha pushes images further apart)")
+    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.65, label="Merging Threshold (controls which features are pushed apart: higher threshold preserves original features more)")
 
 
     with gr.Accordion("Advanced Settings", open=False):

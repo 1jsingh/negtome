@@ -10,7 +10,7 @@
 ## Negative Token Merging: Image-based Adversarial Feature Guidance
   [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md-dark.svg)](https://negtome.github.io/)
 
-[[Paper](https://negtome.github.io/)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://0ba0f871401453266b.gradio.live)] 
+[[Paper](https://negtome.github.io/docs/negtome.pdf)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://8b878b2cb6559b4d5f.gradio.live/)] 
 <!-- [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://negtome.github.io/)  -->
 <br>
 </div>
@@ -40,33 +40,33 @@ We propose NegToMe, which proposes to perform adversarial guidance directly usin
 ## News and Updates
 **[2024.12.4]** Initial Release with Gradio Demo.
 
-## Examples and Applications
-By simply adjusting the used reference image, NegToMe allows for a range of custom applications.
 
+## Examples and Applications
+Simply adjusting the used reference image, allows for a range of custom applications with NegToMe.
 
 #### Increasing Output Diversity
-> Adversarial guidance w.r.t to other images in same batch improves output diversity (by guiding visual features of each image away from each other)
+> Using NegToMe across different outputs improves output diversity (by guiding visual features of each image away from others during reverse diffusion)
 <div align="center">
   <img src="./docs/diversity-sdxl-v2.jpg" alt="Description of Image">
 </div>
 
 
 #### Copyright Mitigation
-> Adversarial guidance w.r.t to a copyrighted retrieval database reduces visual similarity to copyrighted characters.
+> When using copyrighted retrieval database (RAG) as reference, NegToMe allows for better reduction of visual similarity to cpyrighted images.
 <div align="center">
   <img src="./docs/copyright-v1.jpg" alt="Description of Image">
 </div>
 
 
 #### Improving Output Aesthetics and Details
-> Adversarial guidance w.r.t to a blurry / poor quality reference leads to improved output aesthetics and details without requiring any finetuning.
+> Simply using a blurry / poor quality reference leads to improved output aesthetics and details without requiring any finetuning. (by guiding away from poor / blurry features)
 <div align="center">
   <img src="./docs/output-quality-v2.jpg" alt="Description of Image">
 </div>
 
 
 #### Adversarial Style Guidance
-> Adversarial guidance w.r.t to a style reference images helps exclude certain artistic elements while still obtaining the user desired content. 
+> Using NegToMe w.r.t to a style reference image helps exclude certain artistic elements while still obtaining the desired output content. 
 <div align="center">
   <img src="./docs/style-guidance-v1.jpg" alt="Description of Image">
 </div>
@@ -103,8 +103,7 @@ pipe = pipe.to("cuda")
 
 Inference with and w/o negtome can then be run as,
 ```python
-from diffusers.utils import logging
-logging.set_verbosity_error()  # only show errors not warnings: https://huggingface.co/docs/diffusers/en/api/logging
+import torch
 import time
 
 negtome_args = {
@@ -159,7 +158,7 @@ print(f"\nPercentage increase in inference time with negtome: {percentage_increa
 
 
 ### Use the Jupyter Notebook
-Example usage in ```demo_negtome.ipynb```
+Example usage in ```notebooks/demo-negtome.ipynb```
 
 ### Start a local gradio demo
 Run the following command:

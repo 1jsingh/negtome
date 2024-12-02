@@ -13,6 +13,7 @@ test.jpg
 *hf_cache*
 backup*
 flagged*
+gradio_app_serve.py
 
 # cache
 __pycache__
