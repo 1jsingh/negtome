@@ -1,4 +1,4 @@
-name: alphagen
+name: negtome
 channels:
   - pytorch
   - nvidia
@@ -305,4 +305,3 @@ dependencies:
       - yarl==1.9.4
       - zipp==3.19.2
       - fire
-prefix: /data/home/jaskirats/miniconda3/envs/alphagen

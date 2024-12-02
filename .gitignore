@@ -12,6 +12,7 @@ test.jpg
 # *Copy*
 *hf_cache*
 backup*
+flagged*
 
 # cache
 __pycache__

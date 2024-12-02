@@ -93,8 +93,8 @@ with gr.Blocks() as demo:
         width: 100% !important;
     }
     """
-    merging_alpha = gr.Slider(minimum=-1., maximum=3., step=0.1, value=.9, label="Merging Alpha")
-    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.65, label="Merging Threshold")
+    merging_alpha = gr.Slider(minimum=-1., maximum=3., step=0.1, value=.9, label="Merging Alpha (higher alpha pushes images further apart)")
+    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.65, label="Merging Threshold (higher threshold preserves original features)")
 
 
     with gr.Accordion("Advanced Settings", open=False):
@@ -217,8 +217,19 @@ with gr.Blocks() as demo:
     examples = [
         ["a high resolution photo of a person", 0.9],
         ["an artistic painting of a sunset over the mountains", 0.9],
+        ["a high-resolution photo of a fish", 0.9],
+        ["A wizard stepping through a swirling, glowing portal, his robes billowing around him as he holds a staff that hums with energy. The portal casts a soft, otherworldly light, illuminating his determined expression and the dark, ancient ruins surrounding him.", 0.9],
         ["a hyper-realistic digital painting of a child", 0.9],
-        ["a hyper-realistic digital painting of a woman", 0.9],
+        ["a black and white photo of a cat", 0.9],
+        ["a tiger chasing a person in a forest", 0.9],
+        ["a beautiful landscape painting of a waterfall", 0.9],
+        ["A panda leaping up to catch a dumpling mid-air with its paws, surrounded by bamboo and a few steaming baskets of dumplings  on the ground", 0.9],
+        ["A lively golden retriever chasing a bright blue butterfly through a vibrant garden filled with colorful flowers, with sunlight streaming through the leaves and a soft breeze rustling the petals", 0.9],
+        ["An energetic orange tabby cat pouncing on a rolling blue ball in a cozy living room, with a soft rug beneath and sunlight streaming through the window, casting warm patterns on the floor.", 0.9],
+        ["a watercolor illustration of a city skyline at night", 0.9],
+        ["A towering elemental creature made of flowing water, in the middle of a serene meadow, its form constantly shifting and glistening under a soft, diffuse light. The surrounding grass gently bends as a light mist rises around it.", 0.9],
+
+
     ]
     
     gr.Examples(
@@ -228,4 +239,4 @@ with gr.Blocks() as demo:
     
 # Launch the Gradio app
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch()

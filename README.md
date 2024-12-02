@@ -10,7 +10,7 @@
 ## Negative Token Merging: Image-based Adversarial Feature Guidance
   [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md-dark.svg)](https://negtome.github.io/)
 
-[[Paper](https://negtome.github.io/)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://negtome.github.io/)] 
+[[Paper](https://negtome.github.io/)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://0ba0f871401453266b.gradio.live)] 
 <!-- [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://negtome.github.io/)  -->
 <br>
 </div>
@@ -29,7 +29,7 @@ Official Implementation for our paper:
 
 Using a negative prompt for avoiding generation of undesired concepts has emerged as a widely adopted approach. However, capturing complex visual concepts using text-alone is often not feasible (e.g, child in park in Fig. below) and can be insufficient (e.g., for removing copyrighted characters).
 
-NegToMe explores a different direction, proposing to perform adversarial guidance directly using images (as opposed to text alone). The key idea is simple: even if describing the undesired concepts is not effective or feasible in text-alone
+We propose NegToMe, which proposes to perform adversarial guidance directly using images (as opposed to text alone). The key idea is simple: even if describing the undesired concepts is not effective or feasible in text-alone
 (e.g.: child in park} for figure below), we can directly use the visual features from a reference image in order to adversarially guide the generation process.
 
 
