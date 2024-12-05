@@ -98,8 +98,8 @@ class NegtomeArgs:
     merging_dropout: float = 0.0
     merging_t_start: int = 1000
     merging_t_end: int = 900
-    num_joint_blocks = -1, # number of joint transformer blocks (flux) to apply negtome
-    num_single_blocks = -1, # number of single transformer blocks (flux) to apply negtome
+    num_joint_blocks: int = -1 # number of joint transformer blocks (flux) to apply negtome
+    num_single_blocks: int = -1 # number of single transformer blocks (flux) to apply negtome
     num_lang_tokens: int = 512 # number of language tokens for joint attention in flux
 
     # rag asset args (used for masked guidance e.g. copyright mitigation)

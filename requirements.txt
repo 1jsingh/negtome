@@ -1,0 +1,11 @@
+torch
+torchvision
+git+https://github.com/huggingface/diffusers.git@38a3e4df926c59bc122191c0fc8066755e98b6d2
+sentencepiece
+transformers
+accelerate
+einops
+tqdm
+wandb
+gradio
+git+https://github.com/openai/CLIP.git

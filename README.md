@@ -10,7 +10,7 @@
 ## Negative Token Merging: Image-based Adversarial Feature Guidance
   [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md-dark.svg)](https://negtome.github.io/)
 
-[[Paper](https://negtome.github.io/docs/negtome.pdf)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo ](https://8b878b2cb6559b4d5f.gradio.live/)] 
+[[Paper](https://negtome.github.io/docs/negtome.pdf)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo Flux ](https://8b878b2cb6559b4d5f.gradio.live/)] [[🤗 Huggingface Demo SDXL](https://4e116ddf3ab78d0b07.gradio.live/)]
 <!-- [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://negtome.github.io/)  -->
 <br>
 </div>
@@ -76,6 +76,7 @@ Simply adjusting the used reference image, allows for a range of custom applicat
 ## TODO / Updates
 - [x] Initial Code Release
 - [x] Implementation with Flux
+- [x] Implementation with SDXL
 - [x] Source code for gradio demo
 - [ ] Masked Adversarial Guidance
 - [ ] Low VRAM Gradio Demo
@@ -86,8 +87,14 @@ Simply adjusting the used reference image, allows for a range of custom applicat
 To set up our environment, please run:
 
 ```
-conda env create --name negtome --file=environment/environment.yml
+conda create -n negtome python=3.11 -y
+conda activate negtome
+pip install -r requirements.txt
 ```
+
+<!-- ```
+conda env create --name negtome --file=environment/environment.yml
+``` -->
 
 ## Usage
 NegToMe can be incorportated in just few lines of code in most state-of-the-art diffusion models. Currently we provide three ways of using NegToMe:
@@ -158,7 +165,7 @@ print(f"\nPercentage increase in inference time with negtome: {percentage_increa
 
 
 ### Use the Jupyter Notebook
-Example usage in ```notebooks/demo-negtome.ipynb```
+Example usage in ```notebooks/demo-negtome-flux.ipynb``` and ```notebooks/demo-negtome-sdxl.ipynb```
 
 ### Start a local gradio demo
 Run the following command:

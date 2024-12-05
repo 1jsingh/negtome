@@ -14,6 +14,9 @@ test.jpg
 backup*
 flagged*
 gradio_app_serve.py
+gradio_app_serve_sdxl.py
+gradio_app_negtome_sdxl_serve.py
+# *sdxl*
 
 # cache
 __pycache__
