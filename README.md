@@ -10,7 +10,7 @@
 ## Negative Token Merging: Image-based Adversarial Feature Guidance
   [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md-dark.svg)](https://negtome.github.io/)
 
-[[Paper](https://negtome.github.io/docs/negtome.pdf)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo Flux ](https://8b878b2cb6559b4d5f.gradio.live/)] [[🤗 Huggingface Demo SDXL](https://4e116ddf3ab78d0b07.gradio.live/)]
+[[Paper](https://negtome.github.io/docs/negtome.pdf)] &emsp; [[Project Page](https://negtome.github.io/)] &emsp;  [[🤗 Huggingface Demo Flux ](https://a62ec09c8038aea4ee.gradio.live/)] [[🤗 Huggingface Demo SDXL](https://4e116ddf3ab78d0b07.gradio.live/)]
 <!-- [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://negtome.github.io/)  -->
 <br>
 </div>
