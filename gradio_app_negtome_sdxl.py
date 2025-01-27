@@ -14,9 +14,9 @@ pipe = pipe.to("cuda")
 def generate_images(
     prompt,
     merging_alpha=1.9,
-    merging_threshold=0.7,
+    merging_threshold=0.65,
     merging_t_start=1000,
-    merging_t_end=800,
+    merging_t_end=900,
     seed=0,
     num_inference_steps=50,
     num_images_per_prompt=4,
@@ -91,12 +91,12 @@ with gr.Blocks() as demo:
     }
     """
     merging_alpha = gr.Slider(minimum=-1., maximum=3., step=0.1, value=1.5, label="Merging Alpha (controls diversity: higher alpha pushes images further apart)")
-    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.7, label="Merging Threshold (controls which features are pushed apart: higher threshold preserves original features more)")
+    merging_threshold = gr.Slider(minimum=0.5, maximum=1, step=0.05, value=0.65, label="Merging Threshold (controls which features are pushed apart: higher threshold preserves original features more)")
 
 
     with gr.Accordion("Advanced Settings", open=False):
-        merging_t_start = gr.Slider(minimum=950, maximum=1000, step=10., value=950, label="Merging t_start")
-        merging_t_end = gr.Slider(minimum=700, maximum=950, step=10., value=800, label="Merging t_end")
+        merging_t_start = gr.Slider(minimum=950, maximum=1000, step=10., value=1000, label="Merging t_start")
+        merging_t_end = gr.Slider(minimum=800, maximum=950, step=10., value=900, label="Merging t_end")
         seed = gr.Number(value=0, label="Seed", precision=0)
         num_inference_steps = gr.Slider(minimum=25, maximum=100, step=5, value=50, label="Number of Inference Steps")
         num_images_per_prompt = gr.Slider(minimum=1, maximum=8, step=1, value=4, label="Number of Images per Prompt")
@@ -208,8 +208,11 @@ with gr.Blocks() as demo:
     examples = [
         ["a hyper-realistic digital painting of a woman", 1.9],
         ["a high resolution photo of a child", 1.9],
+        ["A warrior woman with glowing armor in a desert.", 1.5],
+        ["A majestic phoenix rising from flames.", 1.5],
+        ["A pirate captain with a parrot on their shoulder, standing on a ship.", 1.5],
         ["a hyper-realistic digital painting of a dragon", 1.9],
-        ["a watercolor illustration of a animal", 1.9],
+        ["a watercolor illustration of a animal", 1.5],
         ["a hyper-realistic digital painting of a building", .9],
         ["a 3D animation of a cute cat", 1.5],
         ["a hyper-realistic digital painting of a dress", 1.5],
@@ -218,6 +221,14 @@ with gr.Blocks() as demo:
         ["A wise old wizard with a long flowing beard and a star-studded robe, holding a glowing staff topped with a crystal orb, standing on a cliff edge overlooking a stormy sea, with runes glowing faintly in the air around him.", 1.9],
         ["A powerful wizard standing atop a mountain peak, their hands raised as they summon a thunderstorm, with crackling lightning bolts shooting from their fingertips and dark clouds swirling ominously overhead.", 1.5],
     ]
+
+    # A sorcerer summoning a glowing portal in a dark cave.
+    # A knight riding a horse through an enchanted forest filled with glowing fireflies.
+    # A staircase leading into the clouds, fading into the horizon.
+    # A bounty hunter in futuristic armor, holding a plasma rifle with a determined expression.
+    # A hacker with glowing glasses and cybernetic implants, surrounded by holographic screens.
+    # A librarian holding an ancient book, a mysterious glow emanating from its pages.
+    # A dog happily splashing through a shallow creek.
     
     gr.Examples(
         examples=examples,
@@ -226,4 +237,4 @@ with gr.Blocks() as demo:
     
 # Launch the Gradio app
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=True)
