@@ -1,0 +1,7 @@
+[user]
+    name = "1jsingh"
+    email = "jaskirat.singh@anu.edu.au"
+[core]
+	editor = nano
+[pager]
+	branch = false

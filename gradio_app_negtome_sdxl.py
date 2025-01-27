@@ -229,6 +229,11 @@ with gr.Blocks() as demo:
     # A hacker with glowing glasses and cybernetic implants, surrounded by holographic screens.
     # A librarian holding an ancient book, a mysterious glow emanating from its pages.
     # A dog happily splashing through a shallow creek.
+    # A merfolk monarch, wearing coral jewelry, with water cascading off their shimmering scales.
+    # a pig is eating an ice cream
+    # A werewolf mid-transformation, their claws extended and eyes glowing.
+    # A Viking shield-maiden, her braids adorned with beads, standing against a stormy sea.
+    # A celestial oracle with a glowing crystal ball, their hair flowing like starlight.
     
     gr.Examples(
         examples=examples,

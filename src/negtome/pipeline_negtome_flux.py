@@ -55,6 +55,134 @@ logging.set_verbosity_error()  # only show errors not warnings: https://huggingf
 
 
 ##########################################################################
+# CADs args
+##########################################################################
+@dataclass
+class CadsArgs:
+    use_cads: bool = False
+    tau1: float = 0.6
+    tau2: float = 0.9
+    noise_scale: float = 0.25
+    mixing_factor: float = 1.0
+    rescale: bool = False
+
+def cads_linear_schedule(step_fraction: float, tau1: float, tau2: float) -> float:
+    """
+    Maps step_fraction in [0..1] to a gamma in [1.0..0.0] between tau1..tau2.
+    Example: if step_fraction < tau1 => gamma=1. If step_fraction>tau2=>gamma=0.
+    """
+    if step_fraction <= tau1:
+        return 1.0
+    elif step_fraction >= tau2:
+        return 0.0
+    else:
+        # Linear interpolation from 1 -> 0 as fraction goes from tau1 -> tau2
+        return (tau2 - step_fraction) / (tau2 - tau1)
+
+def cads_add_noise(
+    emb: torch.Tensor,
+    gamma: float,
+    noise_scale: float,
+    mixing_factor: float,
+    rescale: bool = False
+) -> torch.Tensor:
+    """
+    Applies CADS-style noise to `emb`.
+      - Scales `emb` by sqrt(gamma)
+      - Adds random noise by sqrt(1-gamma)*noise_scale
+      - If rescale=True, re-normalizes to original mean/std with a blend controlled by `mixing_factor`.
+    """
+    if gamma == 1.0:
+        # If gamma=0 => no effect
+        return emb
+
+    emb_mean = emb.mean(dim=-1, keepdim=True)
+    emb_std = emb.std(dim=-1, keepdim=True) + 1e-6
+
+    # baseline: sqrt(gamma)*emb + sqrt(1-gamma)* noise
+    noisy = (gamma**0.5) * emb + ((1 - gamma)**0.5) * noise_scale * torch.randn_like(emb)
+
+    if not rescale:
+        return noisy
+
+    # Re-scale noisy to original mean/std, then mix with the purely noisy version
+    new_mean = noisy.mean(dim=-1, keepdim=True)
+    new_std = noisy.std(dim=-1, keepdim=True) + 1e-6
+
+    scaled = (noisy - new_mean) / new_std * emb_std + emb_mean
+    if torch.isnan(scaled).any():
+        # If we get a NaN, fallback to the non-rescaled version
+        return noisy
+
+    return mixing_factor * scaled + (1.0 - mixing_factor) * noisy
+    
+def cads_process_embeddings(
+    use_cads: bool,
+    original_prompt_embeds: torch.Tensor,
+    original_add_text_embeds: torch.Tensor,
+    step_fraction: float,
+    cads_args: dict,
+    do_classifier_free_guidance: bool,
+) -> (torch.Tensor, torch.Tensor):
+    """
+    Returns a fresh copy of prompt_embeds and add_text_embeds with CADS noise
+    added if `use_cads` is True. Does NOT modify the original inputs in-place.
+    
+    Args:
+      use_cads: whether to apply cads
+      original_prompt_embeds: shape (B, seq_len, hidden_dim) or (2B, ...)
+      original_add_text_embeds: shape (B, dim) or (2B, ...)
+      step_fraction: e.g. in [0..1], 1=initial step, 0=last step
+      cads_args: dict with keys "tau1", "tau2", etc.
+      do_classifier_free_guidance: if True => half of prompt_embeds is uncond, half is text
+
+    Returns:
+      (prompt_embeds_noised, add_text_embeds_noised)
+    """
+    if not use_cads:
+        # Return the unmodified embeddings
+        return original_prompt_embeds, original_add_text_embeds
+
+    gamma = cads_linear_schedule(step_fraction, cads_args["tau1"], cads_args["tau2"])
+    # print (step_fraction, gamma)
+    if gamma < 0.0 or gamma >= 1.0:
+        # If gamma < 0 or 1 => no effect
+        return original_prompt_embeds, original_add_text_embeds
+
+    noise_scale = cads_args["noise_scale"]
+    mixing_factor = cads_args["mixing_factor"]
+    rescale = cads_args["rescale"]
+
+    # clone the original so we don't mutate them:
+    prompt_clone = original_prompt_embeds.clone()
+    add_text_clone = original_add_text_embeds.clone()
+
+    if do_classifier_free_guidance:
+        # print ("do_classifier_free_guidance")
+        half = prompt_clone.shape[0] // 2
+        # split unconditional vs text embeddings
+        uncond, text = prompt_clone[:half], prompt_clone[half:]
+        uncond_noisy = cads_add_noise(uncond, gamma, noise_scale, mixing_factor, rescale)
+        text_noisy  = cads_add_noise(text,  gamma, noise_scale, mixing_factor, rescale)
+        prompt_clone = torch.cat([uncond_noisy, text_noisy], dim=0)
+
+        if add_text_clone.shape[0] == 2 * half:
+            # print ("add_text_clone.shape[0] == 2 * half")
+            uncond_add, text_add = add_text_clone[:half], add_text_clone[half:]
+            uncond_add_noisy = cads_add_noise(uncond_add, gamma, noise_scale, mixing_factor, rescale)
+            text_add_noisy   = cads_add_noise(text_add,   gamma, noise_scale, mixing_factor, rescale)
+            add_text_clone = torch.cat([uncond_add_noisy, text_add_noisy], dim=0)
+        # else shape mismatch => skip
+    else:
+        # print ("not do_classifier_free_guidance")
+        # single set
+        prompt_clone = cads_add_noise(prompt_clone, gamma, noise_scale, mixing_factor, rescale)
+        add_text_clone = cads_add_noise(add_text_clone, gamma, noise_scale, mixing_factor, rescale)
+
+    return prompt_clone, add_text_clone
+
+
+##########################################################################
 # util functions
 ##########################################################################
 # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img.retrieve_latents
@@ -826,6 +954,8 @@ class FluxNegToMePipeline(DiffusionPipeline, FluxLoraLoaderMixin):
         max_sequence_length: int = 512,
         use_negtome: bool = False,
         negtome_args: Optional[dict] = None,
+        use_cads: bool = False,
+        cads_args: Optional[dict] = None,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -922,6 +1052,14 @@ class FluxNegToMePipeline(DiffusionPipeline, FluxLoraLoaderMixin):
         for block in self.transformer.single_transformer_blocks[:num_single_blocks]:
             block.attn.processor.use_negtome = True
 
+
+        #  If user passes in cads_args, fill in missing fields from defaults
+        default_cads_args = CadsArgs()
+        if cads_args is not None:
+            cads_args = {**asdict(default_cads_args), **cads_args}
+        else:
+            cads_args = asdict(default_cads_args)
+        use_cads = cads_args["use_cads"] or use_cads  # final bool
 
         height = height or self.default_sample_size * self.vae_scale_factor
         width = width or self.default_sample_size * self.vae_scale_factor
@@ -1023,7 +1161,9 @@ class FluxNegToMePipeline(DiffusionPipeline, FluxLoraLoaderMixin):
             rag_mask = (torch.from_numpy(rag_mask) / 255.).to(self.transformer.device)
             rag_mask = torch.nn.functional.interpolate(rag_mask[None, None, :, :], (H, W), mode='nearest-exact').squeeze() # (H,W)
             joint_attention_kwargs['negtome_args']['rag_mask'] = rag_mask
-            
+
+        prompt_embeds_orig = prompt_embeds.clone()
+        pooled_prompt_embeds_orig = pooled_prompt_embeds.clone()
         # 6. Denoising loop
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -1059,6 +1199,19 @@ class FluxNegToMePipeline(DiffusionPipeline, FluxLoraLoaderMixin):
                                                                 )
                     latents = torch.cat([rag_latents, gen_latents])                
 
+                # perform CADS
+                fraction_for_cads = float(t.item()) / 1000.0 #1.0 - (float(t.item()) / 1000.0)
+                # Now get a noised copy if CADS is active
+                # `use_cads` is a bool. `self.do_classifier_free_guidance` is a bool
+                prompt_embeds_local, pooled_prompt_embeds_local = cads_process_embeddings(
+                    use_cads = use_cads,  # or a separate bool
+                    original_prompt_embeds = prompt_embeds_orig,
+                    original_add_text_embeds = pooled_prompt_embeds_orig,
+                    step_fraction = fraction_for_cads,
+                    cads_args = cads_args,
+                    do_classifier_free_guidance = False, #self.do_classifier_free_guidance,
+                )
+
                 # update joint args and predict noise
                 joint_attention_kwargs['negtome_args']['timestep'] = timestep
                 joint_attention_kwargs['negtome_args']['time_idx'] = i # also store the time idx
@@ -1067,8 +1220,8 @@ class FluxNegToMePipeline(DiffusionPipeline, FluxLoraLoaderMixin):
                     # YiYi notes: divide it by 1000 for now because we scale it by 1000 in the transforme rmodel (we should not keep it but I want to keep the inputs same for the model for testing)
                     timestep=timestep / 1000,
                     guidance=guidance,
-                    pooled_projections=pooled_prompt_embeds,
-                    encoder_hidden_states=prompt_embeds,
+                    pooled_projections=pooled_prompt_embeds_local,
+                    encoder_hidden_states=prompt_embeds_local,
                     txt_ids=text_ids,
                     img_ids=latent_image_ids,
                     joint_attention_kwargs=joint_attention_kwargs,
