@@ -17,6 +17,7 @@ gradio_app_serve.py
 gradio_app_serve_sdxl.py
 gradio_app_negtome_sdxl_serve.py
 # *sdxl*
+output*
 
 # cache
 __pycache__
