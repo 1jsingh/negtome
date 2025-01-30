@@ -26,7 +26,7 @@ def calc_fid(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL
         all_real_images[category] = real_images
     
     print(len(all_real_images))
-    from src.copycat.utils import get_list_of_files_to_prepare
+    from src.utils import get_list_of_files_to_prepare
     import re
     import pickle
     gen_folder = os.path.join(gen_folder, model_id.replace("/", "_"))
@@ -125,11 +125,11 @@ def calc_fid(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL
     # print(f"KID: {kid.compute()}")
 
 
-def calc_fid_coco_val_100(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False):
+def calc_fid_coco_val_100(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, real_image_dataset=f"coco_val_100"):
     from datasets import load_dataset
     from collections import defaultdict
     all_real_images = []
-    real_image_dataset = f"coco_val_100"
+    
     # load the real image dataset from hf
     real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset))
     real_images = real_image_dataset['train']['image']
@@ -213,11 +213,11 @@ def calc_fid_coco_val_100(gen_folder='copycat/rebuttal', model_id="SG161222/Real
     print(f"FID: {float(fid.compute())}")
 
 
-def calc_precision_recall(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False):
+def calc_precision_recall(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, real_image_dataset=f"coco_val_100"):
     from datasets import load_dataset
     from collections import defaultdict
     all_real_images = []
-    real_image_dataset = f"coco_val_100"
+    # real_image_dataset = f"coco_val_100"
     # load the real image dataset from hf
     real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset))
     real_images = real_image_dataset['train']['image']
@@ -312,6 +312,182 @@ def calc_precision_recall(gen_folder='copycat/rebuttal', model_id="SG161222/Real
     fid.update(fake_images_fid, real=False)
 
     print(f"FID: {float(fid.compute())}")
+
+
+def von_neumann_entropy(rho):
+    """
+    Compute the von Neumann entropy of a density matrix rho.
+    
+    Parameters
+    ----------
+    rho : np.ndarray
+        A density matrix (square, Hermitian, positive semi-definite, trace=1).
+    base : float, optional
+        The logarithm base. By default, uses the natural base (e).
+        Use base=2 for bits, for example.
+    
+    Returns
+    -------
+    float
+        The von Neumann entropy of rho.
+    """
+    import numpy as np
+    # base=np.e
+    print(rho.shape)
+    print(np.min(rho), np.max(rho))
+    # Ensure rho is a NumPy array
+    rho = np.asarray(rho, dtype=complex)
+    
+    # Diagonalize the density matrix to get eigenvalues
+    eigenvalues, _ = np.linalg.eigh(rho)
+    
+    # Filter out (approximately) zero eigenvalues to avoid log(0)
+    # This threshold can be adjusted based on numerical precision needs
+    eps = 1e-12
+    eigenvalues = eigenvalues[eigenvalues > eps]
+    
+    # Compute the von Neumann entropy
+    # S = - sum(lambda_i log(lambda_i))
+    # Use change-of-base formula: log_{base}(x) = log(x) / log(base)
+    log_vals = np.log(eigenvalues) # / np.log(base)
+    entropy = - np.sum(eigenvalues * log_vals)
+
+    entropy = np.exp(entropy)
+    
+    return entropy
+
+
+def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, feature_extractor="dreamsim", real_image_dataset=f"coco_val_100"):
+    from datasets import load_dataset
+    from collections import defaultdict
+    all_real_images = []
+    # load the real image dataset from hf
+    real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset))
+    real_images = real_image_dataset['train']['image']
+    real_image_ids = real_image_dataset['train']['image_id']
+    all_real_images = real_images
+    
+    print(len(all_real_images))
+    from src.copycat.utils import get_list_of_files_to_prepare
+    import re
+    import pickle
+    gen_folder = os.path.join(gen_folder, model_id.replace("/", "_"))
+
+    file_list = get_list_of_files_to_prepare(gen_folder)
+    print(file_list)
+    # search for output files following the pattern using regex
+    if baseline:
+        # baseline
+        pattern = re.compile(fr"guidance{guidance_scale}_seed(\d+)_output.pkl")
+    elif cads:
+        pattern = re.compile(fr"cads_tau(\d+).(\d+)_tau(\d+).(\d+)_noise(\d+).(\d+)_mix(\d+).(\d+)_rescaleTrue_guidance{guidance_scale}_seed(\d+)_output.pkl")
+    else:
+        # alpha and t can be float
+        pattern = re.compile(fr"alpha(\d+).(\d+)_t(\d+).(\d+)_start(\d+)_end(\d+)_guidance{guidance_scale}_seed(\d+)_output.pkl")
+    
+    prompts = []
+    with patch_file_open(f"prompts/{real_image_dataset}.txt", "r") as f:
+        prompts = [line.strip() for line in f.readlines()]
+    
+    prompt_image_ids = defaultdict(str)
+    for i, prompt in enumerate(prompts):
+        prompt_image_ids[prompt] = real_image_ids[i]
+    
+    print(prompt_image_ids)
+
+    gen_images = defaultdict(list)
+
+    all_gen_count = 0
+    for file in file_list:
+        filename = os.path.basename(file)
+        match = pattern.match(filename)
+        if match and filename.endswith(".pkl"):
+            with patch_file_open(file, "rb") as f:
+                loaded_data = pickle.load(f)
+            print(f"Processing {file}")
+            prompts = loaded_data["prompts"]
+            images = loaded_data["images"]
+            for img_id, prompt, image in zip(real_image_ids, prompts, images):
+                gen_images[img_id].extend(image)
+                all_gen_count += len(image)
+    assert all_gen_count > 0, "No generated images found"
+
+    # get dreamsim features for real images and generated images
+    if feature_extractor == "dreamsim":
+        from src.quant_eval import DreamsimScore
+        dreamsim = DreamsimScore()
+        real_features = dreamsim.get_image_features(all_real_images)
+        for img_id, images in gen_images.items():
+            gen_images[img_id] = dreamsim.get_image_features(images)
+    elif feature_extractor == "SSCD":
+        raise NotImplementedError("SSCD feature extractor not implemented yet")
+    else:
+        raise ValueError("Invalid feature extractor")
+
+    # get SSCD features
+    
+    
+    predicted_image_ids = []
+    # build cluster, and predict real feature image id based on the most similar cluster
+    for real_img_id, real_feature in zip(real_image_ids, real_features):
+        max_score = 0
+        max_img_id = None
+        for img_id, gen_features in gen_images.items():
+            real_feature_to_compare = real_feature.expand_as(gen_features).to(dreamsim.device)
+            all_score = (real_feature_to_compare * gen_features.to(dreamsim.device)).sum(axis=-1).cpu()
+            score = all_score.mean()
+            if score > max_score:
+                max_score = score
+                max_img_id = img_id
+        predicted_image_ids.append(max_img_id)
+    print(real_image_ids)
+    print(predicted_image_ids)
+    # calculate precision and recall
+    correct = 0
+    for gt_img_id, predicted_img_id in zip(real_image_ids, predicted_image_ids):
+        if gt_img_id == predicted_img_id:
+            correct += 1
+    recall = correct / len(predicted_image_ids)
+    print(f"Recall: {recall}")
+
+    predicted_generated_image_ids = []
+    gt_gen_image_ids = []
+    for img_id, gen_features in gen_images.items():
+        for gen_feat in gen_features:
+            max_score = 0
+            max_img_id = None
+            gen_feat_to_compare = gen_feat.expand_as(real_features).to(dreamsim.device)
+            all_score = (real_features.to(dreamsim.device) * gen_feat_to_compare).sum(axis=-1).cpu()
+            max_img_id = real_image_ids[all_score.argmax()]
+            predicted_generated_image_ids.append(max_img_id)
+            gt_gen_image_ids.append(img_id)
+    correct = 0
+    for gt_img_id, predicted_img_id in zip(gt_gen_image_ids, predicted_generated_image_ids):
+        if gt_img_id == predicted_img_id:
+            correct += 1
+    precision = correct / len(predicted_generated_image_ids)
+    print(f"Precision: {precision}")
+
+    # calculate vendi score
+    '''
+    we first compute the pairwise cosine similarity matrix Ky
+    among generated images with the same condition, using SSCD (Pizzi et al., 2022) as the pretrained
+    feature extractor. The results are then aggregated for different conditions using two methods: the
+    Mean Similarity Score (MSS), which is a simple average over the similarity matrix Ky , and the Vendi
+    Score (Friedman & Dieng, 2022), which is based on the Von Neumann entropy of Ky .
+    '''
+    mss = 0
+    vendi_score = 0
+    for img_id, gen_features in gen_images.items():
+        all_scores = gen_features @ gen_features.T
+        all_scores = all_scores.cpu().numpy()
+        print(all_scores.mean())
+        mss += all_scores.mean()
+        vendi_score += von_neumann_entropy(all_scores)
+        
+    mss /= len(gen_images)
+    vendi_score /= len(gen_images)
+    print(f"MSS: {mss}, Vendi Score: {vendi_score}")
 
 
 def zeroshot_classifier(model, processor, classnames, templates):
