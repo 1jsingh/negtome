@@ -1585,7 +1585,7 @@ class StableDiffusionXLNegToMePipeline(
             batch_size = prompt_embeds.shape[0]
 
         device = self._execution_device
-
+        print(f"num_images_per_prompt: {num_images_per_prompt}")
         # 3. Encode input prompt
         lora_scale = (
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
