@@ -275,7 +275,7 @@ def compute_metrics(data_path, scores='all'):
         print(f"{metric}: {value}")
 
 
-def load_gen_images(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL_V4.0", baseline=True, categories=['bird', 'mammal', 'animal', 'boat', 'building', 'bus', 'car', 'airplane', 'fish', 'insect/bug', 'dog', 'cat',  'dragon', 'bridge', 'person', 'woman', 'man', 'child','shirt', 'dress'], guidance_scale=5.0, merge_categories=False, tau=0.7):
+def load_gen_images(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL_V4.0", baseline=True, categories=['bird', 'mammal', 'animal', 'boat', 'building', 'bus', 'car', 'airplane', 'fish', 'insect/bug', 'dog', 'cat',  'dragon', 'bridge', 'person', 'woman', 'man', 'child','shirt', 'dress'], guidance_scale=5.0, merge_categories=False, tau=0.7, t_start=1000, t_end=900):
     from collections import defaultdict
     from src.copycat.utils import get_list_of_files_to_prepare
     import re
@@ -291,7 +291,7 @@ def load_gen_images(gen_folder='copycat/output_diversity', model_id="SG161222/Re
         pattern = re.compile(fr"guidance{guidance_scale}_seed(\d+)_output.pkl")
     else:
         # alpha and t can be float
-        pattern = re.compile(fr"alpha(\d+).(\d+)_t{tau}_start(\d+)_end(\d+)_guidance{guidance_scale}_seed(\d+)_output.pkl")
+        pattern = re.compile(fr"alpha(\d+).(\d+)_t{tau}_start{t_start}_end{t_end}_guidance{guidance_scale}_seed(\d+)_output.pkl")
     
     gen_images = defaultdict(list)
     merged_data = defaultdict(list)
@@ -437,7 +437,7 @@ def load_gen_images(gen_folder='copycat/output_diversity', model_id="SG161222/Re
     return gen_images, output_filename
 
 
-def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4.0", guidance_scale=5.0, baseline=False, scores='all', tau=0.7):
+def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4.0", guidance_scale=5.0, baseline=False, scores='all', tau=0.7, t_start=1000, t_end=900):
     """
     Compute selected metrics for images in the provided data path.
 
@@ -454,7 +454,8 @@ def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4
         scores_to_compute = [
             'dreamsim',                
             # 'vqa', 
-            # 'aes', 'inception',
+            # 'aes', 
+            'inception',
             # 'clip'
             ]
     elif isinstance(scores, str):
@@ -471,7 +472,7 @@ def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4
 
     data, output_filename = load_gen_images(
         model_id=model_id, gen_folder=gen_folder, guidance_scale=guidance_scale,
-        baseline=baseline, merge_categories=True, tau=tau)
+        baseline=baseline, merge_categories=True, tau=tau, t_start=t_start, t_end=t_end)
     if 'dreamsim' in scores_to_compute:
         dreamsim_score_obj = DreamsimScore(device="cuda" if torch.cuda.is_available() else "cpu")
         img2img_sim = []
@@ -484,7 +485,7 @@ def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4
     
     data, _ = load_gen_images(
         model_id=model_id, gen_folder=gen_folder, guidance_scale=guidance_scale,
-        baseline=baseline, merge_categories=False)
+        baseline=baseline, merge_categories=False, tau=tau, t_start=t_start, t_end=t_end)
 
     # Compute VQAScore
     if 'vqa' in scores_to_compute:

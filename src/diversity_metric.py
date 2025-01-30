@@ -6,6 +6,46 @@ src_folder = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(src_folder))
 from src.utils import patch_file_open, file_exists
 import json
+from PIL import Image
+
+
+class SSCD_FeatureExtractor:
+    def __init__(self, device="cuda"):
+        self.model = torch.jit.load("./sscd_disc_mixup.torchscript.pt")
+        self.model.eval()
+
+        from torchvision import transforms
+
+        normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
+        )
+        self.small_288 = transforms.Compose([
+            transforms.Resize(288),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        self.skew_320 = transforms.Compose([
+            transforms.Resize([320, 320]),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        self.device = device
+
+    def get_image_features(self, images_or_paths, norm=True):
+        if not isinstance(images_or_paths, list):
+            images_or_paths = [images_or_paths]
+        if isinstance(images_or_paths[0], str):
+            images = []
+            for image_or_path in images_or_paths:
+                img = Image.open(image_or_path).convert('RGB')
+                images.append(img)
+        else:
+            images = images_or_paths
+        inputs = torch.stack([self.small_288(image).to(self.device).squeeze(0) for image in images])
+        image_features = self.model(inputs)
+        if norm:
+            image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
+        return image_features
 
 
 def load_clip_model():
@@ -125,13 +165,13 @@ def calc_fid(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL
     # print(f"KID: {kid.compute()}")
 
 
-def calc_fid_coco_val_100(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, real_image_dataset=f"coco_val_100"):
+def calc_fid_coco_val_100(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, real_image_dataset_name=f"coco_val_100"):
     from datasets import load_dataset
     from collections import defaultdict
     all_real_images = []
     
     # load the real image dataset from hf
-    real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset))
+    real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset_name))
     real_images = real_image_dataset['train']['image']
     all_real_images = real_images
     
@@ -256,18 +296,18 @@ def von_neumann_entropy(rho):
     return entropy
 
 
-def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, feature_extractor="dreamsim", real_image_dataset=f"coco_val_100"):
+def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, feature_extractor="dreamsim", real_image_dataset_name=f"coco_val_100"):
     from datasets import load_dataset
     from collections import defaultdict
     all_real_images = []
     # load the real image dataset from hf
-    real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset))
+    real_image_dataset = load_dataset(os.path.join('copycat-project', real_image_dataset_name))
     real_images = real_image_dataset['train']['image']
     real_image_ids = real_image_dataset['train']['image_id']
     all_real_images = real_images
     
     print(len(all_real_images))
-    from src.copycat.utils import get_list_of_files_to_prepare
+    from src.utils import get_list_of_files_to_prepare
     import re
     import pickle
     gen_folder = os.path.join(gen_folder, model_id.replace("/", "_"))
@@ -285,7 +325,7 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         pattern = re.compile(fr"alpha(\d+).(\d+)_t(\d+).(\d+)_start(\d+)_end(\d+)_guidance{guidance_scale}_seed(\d+)_output.pkl")
     
     prompts = []
-    with patch_file_open(f"prompts/{real_image_dataset}.txt", "r") as f:
+    with patch_file_open(f"prompts/{real_image_dataset_name}.txt", "r") as f:
         prompts = [line.strip() for line in f.readlines()]
     
     prompt_image_ids = defaultdict(str)
@@ -319,7 +359,11 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         for img_id, images in gen_images.items():
             gen_images[img_id] = dreamsim.get_image_features(images)
     elif feature_extractor == "SSCD":
-        raise NotImplementedError("SSCD feature extractor not implemented yet")
+        # raise NotImplementedError("SSCD feature extractor not implemented yet")
+        sscd = SSCD_FeatureExtractor()
+        real_features = sscd.get_image_features(all_real_images)
+        for img_id, images in gen_images.items():
+            gen_images[img_id] = sscd.get_image_features(images)
     else:
         raise ValueError("Invalid feature extractor")
 
@@ -585,7 +629,7 @@ imagenet_templates = [
 
 def load_gen_images(gen_folder='copycat/output_diversity', model_id="SG161222/RealVisXL_V4.0", baseline=True, categories=['bird', 'mammal', 'animal', 'boat', 'building', 'bus', 'car', 'airplane', 'fish', 'insect/bug', 'dog', 'cat',  'dragon', 'bridge', 'person', 'woman', 'man', 'child','shirt', 'dress'], guidance_scale=5.0, save_to_img_file=False, load=True):
     from collections import defaultdict
-    from src.copycat.utils import get_list_of_files_to_prepare
+    from src.utils import get_list_of_files_to_prepare
     import re
     import pickle
     gen_folder = os.path.join(gen_folder, model_id.replace("/", "_"))
