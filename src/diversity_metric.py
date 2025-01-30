@@ -302,7 +302,7 @@ def von_neumann_entropy(rho):
     return entropy
 
 
-def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, feature_extractor="dreamsim", real_image_dataset_name=f"coco_val_100"):
+def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/RealVisXL_V4.0", baseline=False, guidance_scale=5.0, cads=False, feature_extractor="dreamsim", real_image_dataset_name=f"coco_val_100", t_end=900):
     from datasets import load_dataset
     from collections import defaultdict
     all_real_images = []
@@ -328,7 +328,7 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         pattern = re.compile(fr"cads_tau(\d+).(\d+)_tau(\d+).(\d+)_noise(\d+).(\d+)_mix(\d+).(\d+)_rescaleTrue_guidance{guidance_scale}_seed(\d+)_output.pkl")
     else:
         # alpha and t can be float
-        pattern = re.compile(fr"alpha(\d+).(\d+)_t(\d+).(\d+)_start(\d+)_end(\d+)_guidance{guidance_scale}_seed(\d+)_output.pkl")
+        pattern = re.compile(fr"alpha(\d+).(\d+)_t(\d+).(\d+)_start(\d+)_end{t_end}_guidance{guidance_scale}_seed(\d+)_output.pkl")
     
     prompts = []
     with patch_file_open(f"prompts/{real_image_dataset_name}.txt", "r") as f:
@@ -426,9 +426,14 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
     Score (Friedman & Dieng, 2022), which is based on the Von Neumann entropy of Ky .
     '''
     mss = 0
+    dreamsim_score = 0
     vendi_score = 0
     for img_id, gen_features in gen_images.items():
         all_scores = gen_features @ gen_features.T
+        if feature_extractor == "dreamsim":
+            lower_triangular = torch.tril(all_scores, diagonal=-1)
+            num_pairs = (len(images) * (len(images) - 1)) / 2
+            dreamsim_score += lower_triangular.sum() / num_pairs
         all_scores = all_scores.cpu().numpy()
         # print(all_scores.mean())
         mss += all_scores.mean()
@@ -436,7 +441,8 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         
     mss /= len(gen_images)
     vendi_score /= len(gen_images)
-    print(f"MSS: {mss}, Vendi Score: {vendi_score}")
+    dreamsim_score /= len(gen_images)
+    print(f"MSS: {mss}, Vendi Score: {vendi_score}, Dreamsim Score: {dreamsim_score}")
 
 
 def zeroshot_classifier(model, processor, classnames, templates):

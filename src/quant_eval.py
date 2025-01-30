@@ -191,7 +191,7 @@ def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
         py = np.mean(part, axis=0)
         scores = [entropy(pyx, py) for pyx in part]
         split_scores.append(np.exp(np.mean(scores)))
-    return np.mean(split_scores), np.std(split_scores)
+    return np.sum(split_scores), np.std(split_scores)
 
 class PILImageDataset(Dataset):
     def __init__(self, pil_images, transform=None):
@@ -454,10 +454,10 @@ def compute_metrics_output_diversity(gen_folder, model_id="SG161222/RealVisXL_V4
     # Parse the scores argument
     if scores == 'all':
         scores_to_compute = [
-            'dreamsim',                
-            # 'vqa', 
+            # 'dreamsim',                
+            'vqa', 
             # 'aes', 
-            'inception',
+            # 'inception',
             # 'clip'
             ]
     elif isinstance(scores, str):
