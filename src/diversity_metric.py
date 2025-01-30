@@ -11,8 +11,9 @@ from PIL import Image
 
 class SSCD_FeatureExtractor:
     def __init__(self, device="cuda"):
-        self.model = torch.jit.load("./sscd_disc_mixup.torchscript.pt")
+        self.model = torch.jit.load("./sscd_disc_large.torchscript.pt")
         self.model.eval()
+        self.model.to(device)
 
         from torchvision import transforms
 
@@ -31,7 +32,7 @@ class SSCD_FeatureExtractor:
         ])
         self.device = device
 
-    def get_image_features(self, images_or_paths, norm=True):
+    def get_image_features(self, images_or_paths, norm=True, batch_size=32):
         if not isinstance(images_or_paths, list):
             images_or_paths = [images_or_paths]
         if isinstance(images_or_paths[0], str):
@@ -41,8 +42,13 @@ class SSCD_FeatureExtractor:
                 images.append(img)
         else:
             images = images_or_paths
-        inputs = torch.stack([self.small_288(image).to(self.device).squeeze(0) for image in images])
-        image_features = self.model(inputs)
+        inputs = torch.stack([self.skew_320(image).to(self.device).squeeze(0) for image in images])
+        image_features = []
+        with torch.no_grad():
+            for i in range(0, len(inputs), batch_size):
+                image_features.append(self.model(inputs[i:i+batch_size]))
+        image_features = torch.cat(image_features)
+        # image_features = self.model(inputs)
         if norm:
             image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
         return image_features
@@ -272,8 +278,8 @@ def von_neumann_entropy(rho):
     """
     import numpy as np
     # base=np.e
-    print(rho.shape)
-    print(np.min(rho), np.max(rho))
+    # print(rho.shape)
+    # print(np.min(rho), np.max(rho))
     # Ensure rho is a NumPy array
     rho = np.asarray(rho, dtype=complex)
     
@@ -332,7 +338,7 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
     for i, prompt in enumerate(prompts):
         prompt_image_ids[prompt] = real_image_ids[i]
     
-    print(prompt_image_ids)
+    # print(prompt_image_ids)
 
     gen_images = defaultdict(list)
 
@@ -358,7 +364,7 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         real_features = dreamsim.get_image_features(all_real_images)
         for img_id, images in gen_images.items():
             gen_images[img_id] = dreamsim.get_image_features(images)
-    elif feature_extractor == "SSCD":
+    elif feature_extractor == "sscd":
         # raise NotImplementedError("SSCD feature extractor not implemented yet")
         sscd = SSCD_FeatureExtractor()
         real_features = sscd.get_image_features(all_real_images)
@@ -376,15 +382,15 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         max_score = 0
         max_img_id = None
         for img_id, gen_features in gen_images.items():
-            real_feature_to_compare = real_feature.expand_as(gen_features).to(dreamsim.device)
-            all_score = (real_feature_to_compare * gen_features.to(dreamsim.device)).sum(axis=-1).cpu()
+            real_feature_to_compare = real_feature.expand_as(gen_features).to(gen_features.device)
+            all_score = (real_feature_to_compare * gen_features.to(gen_features.device)).sum(axis=-1).cpu()
             score = all_score.mean()
             if score > max_score:
                 max_score = score
                 max_img_id = img_id
         predicted_image_ids.append(max_img_id)
-    print(real_image_ids)
-    print(predicted_image_ids)
+    # print(real_image_ids)
+    # print(predicted_image_ids)
     # calculate precision and recall
     correct = 0
     for gt_img_id, predicted_img_id in zip(real_image_ids, predicted_image_ids):
@@ -399,8 +405,8 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
         for gen_feat in gen_features:
             max_score = 0
             max_img_id = None
-            gen_feat_to_compare = gen_feat.expand_as(real_features).to(dreamsim.device)
-            all_score = (real_features.to(dreamsim.device) * gen_feat_to_compare).sum(axis=-1).cpu()
+            gen_feat_to_compare = gen_feat.expand_as(real_features).to(real_features.device)
+            all_score = (real_features.to(real_features.device) * gen_feat_to_compare).sum(axis=-1).cpu()
             max_img_id = real_image_ids[all_score.argmax()]
             predicted_generated_image_ids.append(max_img_id)
             gt_gen_image_ids.append(img_id)
@@ -424,7 +430,7 @@ def calc_cads_metric_coco(gen_folder='copycat/rebuttal', model_id="SG161222/Real
     for img_id, gen_features in gen_images.items():
         all_scores = gen_features @ gen_features.T
         all_scores = all_scores.cpu().numpy()
-        print(all_scores.mean())
+        # print(all_scores.mean())
         mss += all_scores.mean()
         vendi_score += von_neumann_entropy(all_scores)
         
