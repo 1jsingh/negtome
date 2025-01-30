@@ -46,7 +46,6 @@ CADS_ARGS = {
     "rescale": True,        # Whether to re-normalize the latents after mixing
 }
 
-
 ###############################################################################
 # Helpers
 ###############################################################################
@@ -57,7 +56,6 @@ def get_prompts_from_cat_and_prefix(category_list, prompt_prefixes):
     prompts = []
     for prefix in prompt_prefixes:
         for cat in category_list:
-            # e.g., "a photo of a bird"
             prompt = f"{prefix} {cat}"
             prompts.append(prompt.strip())
     return prompts
@@ -70,7 +68,6 @@ def get_prompts_from_coco_captions(coco_caption_file, max_num_captions=5):
     with open(coco_caption_file, 'r') as f:
         coco_anns = json.load(f)
 
-    # We'll gather captions by image_id
     id2captions = defaultdict(list)
     for ann in coco_anns["annotations"]:
         image_id = ann["image_id"]
@@ -80,7 +77,6 @@ def get_prompts_from_coco_captions(coco_caption_file, max_num_captions=5):
     # Flatten into a list of prompts, up to max_num_captions per image
     all_prompts = []
     for image_id, caps in id2captions.items():
-        # limit each image to `max_num_captions`
         all_prompts.extend(caps[:max_num_captions])
     return all_prompts
 
@@ -91,16 +87,11 @@ def get_batches(items, batch_size):
     for i in range(0, len(items), batch_size):
         yield items[i : i + batch_size]
 
-def save_results_to_pkl(results, save_path):
-    """
-    Saves a dictionary `results` to a pickle file at `save_path`.
-    """
-    if not os.path.exists(os.path.dirname(save_path)):
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    with open(save_path, "wb") as f:
-        pickle.dump(results, f)
-    print(f"Results saved to: {save_path}")
-
+def _save_pickle(obj, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+    print(f"Saved: {path}")
 
 ###############################################################################
 # Main distributed function
@@ -115,17 +106,18 @@ def main(
 
     # -- Generation config
     neg_prompt=DEFAULT_NEG_PROMPT,
-    batch_size=2,
+    batch_size=4,
     num_images_per_prompt=4,
     num_inference_steps=50,
-    guidance_scale=7.5,
+    guidance_scale=5.0,
     seed=0,
-    height=512,
-    width=512,
+    height=1024,
+    width=1024,
     model_id="SG161222/RealVisXL_V4.0",
 
     # -- Output
     output_pkl="./output/distributed_results.pkl",
+    save_every=0,  # if >0, save partial results every N prompts
 
     # -- CADS
     use_cads=False,
@@ -147,13 +139,19 @@ def main(
 
     Examples:
       1) Category + prefix mode (default):
-         accelerate launch distributed_inference_script.py --batch_size=4
+         accelerate launch this_script.py --batch_size=4
 
       2) COCO caption mode:
-         accelerate launch distributed_inference_script.py --coco_captions=./data/coco2017_val/annotations/captions_val2017.json \
-                                                          --max_num_captions=5 \
-                                                          --batch_size=2
+         accelerate launch this_script.py --coco_captions=./data/coco2017_val/annotations/captions_val2017.json \
+                                          --max_num_captions=5 \
+                                          --batch_size=2
+
+      3) Periodic partial saves:
+         accelerate launch this_script.py --save_every=50 ...
     """
+    import random
+    random.shuffle(category_list)
+
     # Build the final prompt list
     if coco_captions is not None:
         # Use COCO captions
@@ -164,16 +162,14 @@ def main(
         all_prompts = get_prompts_from_cat_and_prefix(category_list, prompt_prefixes)
         print(f"[CATEGORY+PREFIX MODE] Built {len(all_prompts)} prompts from categories + prefixes.")
 
-    import random
     random.shuffle(all_prompts)
-    all_prompts  = all_prompts[:max_num_prompts]
+    all_prompts = all_prompts[:max_num_prompts]
 
-    # Initialize Accelerator for distributed usage
     accelerator = Accelerator()
     device = accelerator.device
     if accelerator.is_main_process:
         print(f"Running on device: {device}")
-        print(f"Will generate {len(all_prompts)} prompts x {num_images_per_prompt} images each = "
+        print(f"Will generate {len(all_prompts)} prompts x {num_images_per_prompt} images = "
               f"{len(all_prompts)*num_images_per_prompt} total images.")
 
     # Prepare pipeline
@@ -183,7 +179,7 @@ def main(
     )
     pipeline.to(device)
 
-    # If needed, enable CPU offload:
+    # If needed, e.g. for large models:
     # pipeline.enable_model_cpu_offload(gpu_id=device.index)
 
     # Prepare CADS args
@@ -206,20 +202,19 @@ def main(
         'merging_t_end': merging_t_end,
     }
 
-    # We'll store final results here on the main process:
+    # We'll store final results in these lists
     all_collected_prompts = []
     all_collected_images = []
 
-    # Build data loader
     prompt_loader = get_batches(all_prompts, batch_size=batch_size)
+    # generator = torch.Generator(device=device).manual_seed(seed)
 
-    # For reproducibility
-    generator = torch.Generator(device=device).manual_seed(seed)
+    # Keep track of how many prompts we've processed overall (for partial saving)
+    processed_prompts_count = 0
 
     # MAIN LOOP
-    for batch in tqdm(prompt_loader, disable=not accelerator.is_main_process):
-        # Split this batch among multiple processes
-        with accelerator.split_between_processes(batch) as local_prompts:
+    for batch_prompts in tqdm(prompt_loader, disable=not accelerator.is_main_process):
+        with accelerator.split_between_processes(batch_prompts) as local_prompts:
             if not accelerator.is_main_process:
                 logging.set_verbosity_error()
                 logging.disable_progress_bar()
@@ -227,7 +222,8 @@ def main(
             if len(local_prompts) == 0:
                 continue
 
-            # Generate images with your pipeline
+            generator = torch.Generator(device=device).manual_seed(seed)
+            # Generate
             output = pipeline(
                 prompt=local_prompts,
                 negative_prompt=neg_prompt,
@@ -244,39 +240,48 @@ def main(
                 use_negtome=use_negtome,
                 negtome_args=negtome_args,
             )
-            # pipeline output is typically with .images
-            images = output.images  # this is a list, length = len(local_prompts) * num_images_per_prompt
+            images = [output.images]  # typically a list of len(local_prompts)*num_images_per_prompt
 
-        # Synchronize across processes
         accelerator.wait_for_everyone()
 
-        # Gather images + prompts from all ranks
         gathered_images = gather_object(images)
         gathered_prompts = gather_object(local_prompts)
 
-        # Append to the global lists (on main process)
         all_collected_images.extend(gathered_images)
         all_collected_prompts.extend(gathered_prompts)
+        processed_prompts_count += len(gathered_prompts)
 
-        # Free up GPU memory
+        # Periodic partial save
+        if accelerator.is_main_process and save_every > 0:
+            # If we've hit a multiple of save_every
+            if processed_prompts_count % save_every == 0:
+                partial_path = os.path.splitext(output_pkl)[0] + f"_partial_{processed_prompts_count}.pkl"
+                partial_results = {
+                    "prompts": all_collected_prompts.copy(),
+                    "images": all_collected_images.copy(),
+                    "processed_prompts_count": processed_prompts_count,
+                }
+                _save_pickle(partial_results, partial_path)
+                print(f"[Partial Save] {processed_prompts_count} prompts processed.")
+
         torch.cuda.empty_cache()
 
     ############################################################################
-    # Save results (only on main process)
+    # FINAL SAVE (only on main process)
     ############################################################################
     if accelerator.is_main_process:
         total_prompts = len(all_collected_prompts)
-        print(f"\nCompleted generation of {total_prompts} prompts, each prompt has {num_images_per_prompt} images.")
+        print(f"\nCompleted generation of {total_prompts} prompts, each with {num_images_per_prompt} images.")
         # Store everything in a dict
         results = {
             "prompts": all_collected_prompts,
             "images": all_collected_images,
             "args": {
-                # which mode was used
                 "coco_captions": coco_captions,
                 "max_num_captions": max_num_captions,
                 "category_list": category_list,
                 "prompt_prefixes": prompt_prefixes,
+                "max_num_prompts": max_num_prompts,
 
                 # generation params
                 "num_inference_steps": num_inference_steps,
@@ -296,8 +301,8 @@ def main(
                 "model_id": model_id,
             }
         }
-        save_results_to_pkl(results, output_pkl)
-        print(f"Done. Results saved to {output_pkl}.")
+        _save_pickle(results, output_pkl)
+        print(f"Done. Final results saved to {output_pkl}.")
 
 
 if __name__ == "__main__":
